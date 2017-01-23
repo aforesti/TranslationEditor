@@ -41,21 +41,25 @@ type
     btnSave: TRzToolButton;
     il: TImageList;
     btnReload: TRzToolButton;
+    RzSpacer1: TRzSpacer;
+    btnAdd: TRzToolButton;
+    btnRemove: TRzToolButton;
+    procedure btnAddClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure btnReloadClick(Sender: TObject);
+    procedure btnRemoveClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
   private
     _arquivos: TStringList;
+    procedure LoadFiles;
     procedure LoadValues; overload;
     procedure LoadValues(node: TcxTreeListNode; coluna: Integer; json: ISuperObject); overload;
     procedure SaveValues(node: TcxTreeListNode; coluna: Integer; json: ISuperObject);
     function getName(parentNode: TcxTreeListNode; name: string): string;
     procedure SaveJson;
   public
-    const pastaLocales: string = 'D:\Projetos\Colibri-Master\src\frontend\locales\';
-    const TRANSLATION = 'translation.json';
     procedure Load;
   end;
 
@@ -64,9 +68,21 @@ var
 
 implementation
 uses
-  suporte.arquivos;
+  suporte.arquivos, System.IniFiles;
 
 {$R *.dfm}
+
+procedure TFormEditor.btnAddClick(Sender: TObject);
+var
+  text: string;
+  node: TcxTreeListNode;
+begin
+  text := InputBox('Chave', 'Digite o valor da chave a ser adicionada' , '');
+  node := TcxTreeListNode.Create(tv);
+  node.Texts[0] := text;
+  tv.InsertEx(node, tv.FocusedNode);
+  tv.SetFocusedNode(node, []);
+end;
 
 procedure TFormEditor.FormDestroy(Sender: TObject);
 begin
@@ -78,10 +94,15 @@ begin
   Load();
 end;
 
+procedure TFormEditor.btnRemoveClick(Sender: TObject);
+begin
+  tv.DeleteSelection;
+end;
+
 procedure TFormEditor.FormCreate(Sender: TObject);
 begin
   _arquivos := TStringList.Create;
-  arquivos.ListarPastas(pastaLocales, _arquivos);
+  LoadFiles;
   Load();
 end;
 
@@ -115,7 +136,7 @@ var f: TStringList;
 begin
   f := TStringList.Create;
   try
-    f.LoadFromFile(_arquivos[0]+ '\' +TRANSLATION);
+    f.LoadFromFile(_arquivos[0]);
     json := SO(f.Text);
   finally
     FreeAndNil(f);
@@ -132,6 +153,25 @@ begin
     LoadValues;
   finally
     tv.EndUpdate;
+  end;
+end;
+
+procedure TFormEditor.LoadFiles;
+var
+  pastaLocales: string;
+  nomeArquivo: string;
+  ini: TIniFile;
+  i: integer;
+begin
+  ini := TIniFile.Create('config.ini');
+  try
+    pastaLocales := ini.ReadString('config', 'pasta-locale', 'D:\Projetos\Colibri-Master\src\frontend\locales\');
+    nomeArquivo := ini.ReadString('config', 'arquivo', 'translation.json');
+    arquivos.ListarPastas(pastaLocales, _arquivos);
+    for I := 0 to _arquivos.Count - 1 do
+      _arquivos[i] := _arquivos[i] + '\' + nomeArquivo;
+  finally
+    FreeAndNil(ini);
   end;
 end;
 
@@ -169,8 +209,8 @@ begin
     for i := 1 to _arquivos.Count do
     begin
       tv.CreateColumn();
-      tv.Columns[i].Caption.Text := ExtractFileName(_arquivos[i-1]);
-      f.LoadFromFile(_arquivos[i-1]+'\'+TRANSLATION);
+      tv.Columns[i].Caption.Text := ExtractFileName(ExtractFileDir(_arquivos[i-1]));
+      f.LoadFromFile(_arquivos[i-1]);
       json := SO(f.Text);
       LoadValues(tv.Root, i, json);
     end;
@@ -193,7 +233,7 @@ begin
       SaveValues(tv.Root, i, json);
       f.Text := json.AsJSon(True);
       f.WriteBOM := True;
-      f.SaveToFile(_arquivos[i-1] + '\'+TRANSLATION, TEncoding.ANSI);
+      f.SaveToFile(_arquivos[i-1], TEncoding.ANSI);
     end;
   finally
     FreeAndNil(f);
